@@ -1,0 +1,11 @@
+# Standard
+.vscode
+*.env
+*.venv
+*.DS_Store
+*.pycache_
+
+# folders
+data/
+models/
+logs/
