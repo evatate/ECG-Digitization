@@ -179,8 +179,8 @@ Voltage conversion:
 
 $$
 s(t) =
--\frac{y(t) - y_{\text{baseline}}}
-{\text{px\_per\_mV}}
+- \frac{y(t) - y_{\mathrm{baseline}}}
+{\mathrm{px\,per\,mV}}
 $$
 
 Baseline is estimated from low‑variance sliding windows approximating TP segments.
