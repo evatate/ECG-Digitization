@@ -356,21 +356,25 @@ def heatmap_to_signal(heatmap: np.ndarray, target_len: int, img_band: np.ndarray
     baseline_px = np.median(col_y)
     signal      = -(signal - baseline_px) / px_per_mv  # invert: top = positive
 
-    # 7. Isoelectric correction: find the quietest 20% of the signal
-    #    (lowest local variance windows = TP segments between beats)
-    #    and shift the whole signal so those segments sit at 0 mV.
+    # 7. Isoelectric correction via quiet-window detection
+    #    Find TP segments (lowest local variance) and zero them.
     if len(signal) > 20:
-        win = max(5, len(signal) // 20)   # window ~5% of signal length
-        # Compute rolling variance
+        win      = max(5, len(signal) // 20)
         n_wins   = len(signal) - win + 1
         roll_var = np.array([signal[j:j+win].var() for j in range(n_wins)])
-        # Take the quietest 20% of windows
         thresh   = np.percentile(roll_var, 20)
         quiet    = roll_var <= thresh
         quiet_vals = np.concatenate([signal[j:j+win] for j in range(n_wins) if quiet[j]])
         if len(quiet_vals) > 0:
-            iso_level = np.median(quiet_vals)
-            signal    = signal - iso_level   # shift so isoelectric = 0 mV
+            signal = signal - np.median(quiet_vals)
+
+    # 8. Amplitude correction via IQR normalisation
+    #    Expected ECG IQR (P25–P75) is ~0.15 mV for most leads.
+    #    We rescale so the pred IQR matches this
+    iqr = np.percentile(signal, 75) - np.percentile(signal, 25)
+    target_iqr = 0.15   # mV, typical ECG IQR across leads
+    if iqr > 1e-4:
+        signal = signal * (target_iqr / iqr)
 
     return signal.astype(np.float32)
 
@@ -438,7 +442,7 @@ fig, axes = plt.subplots(4, 3, figsize=(18, 12))
 axes_flat = axes.flatten()   # index 0..11 maps directly to LEAD_NAMES order
 img_np_val = img_tensor.squeeze().cpu().numpy()
 
-# Normalise column names
+# Normalise column names in val_sig to match LEAD_NAMES exactly
 val_sig.columns = [c.strip() for c in val_sig.columns]
 print(f"Signal columns: {list(val_sig.columns)}")
 
