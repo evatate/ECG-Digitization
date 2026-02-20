@@ -178,9 +178,7 @@ Pixels‑per‑mV is estimated via FFT of the row‑wise grayscale projection to
 Voltage conversion:
 
 $$
-s(t) =
-- \frac{y(t) - y_{\mathrm{baseline}}}
-{\mathrm{px\,per\,mV}}
+s(t) = -\frac{y(t) - y_{\mathrm{baseline}}}{\mathrm{px\ per\ mV}}
 $$
 
 Baseline is estimated from low‑variance sliding windows approximating TP segments.
