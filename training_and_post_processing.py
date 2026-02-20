@@ -259,7 +259,6 @@ for epoch in range(EPOCHS):
 print('Fine-tuning complete.')
 torch.save(model.state_dict(), WORK_DIR / 'finetuned_unet.pth')
 
-
 def estimate_px_per_mv(img_band: np.ndarray) -> float:
     """
     Estimate pixels-per-mV from the RAW GRAYSCALE image band (not the heatmap).
@@ -296,7 +295,7 @@ def estimate_px_per_mv(img_band: np.ndarray) -> float:
     grid_spacing_px = 1.0 / dominant_freq
     px_per_mv = grid_spacing_px / 0.5   # large box = 0.5 mV
 
-    # Sanity clamp: must be physically reasonable
+    # Must be physically reasonable
     px_per_mv = float(np.clip(px_per_mv, H / 8.0, H * 2.0))
     return px_per_mv
 
@@ -349,22 +348,29 @@ def heatmap_to_signal(heatmap: np.ndarray, target_len: int, img_band: np.ndarray
     signal = resample(col_y, target_len)
 
     # 6. Pixel -> mV
-    #    Baseline: 10th percentile of col_y = isoelectric line
-    #    Scale: grid-calibrated from the raw image band, else fallback
     calibration_src = img_band if img_band is not None else heatmap
     px_per_mv   = estimate_px_per_mv(calibration_src)
-    baseline_px = np.percentile(col_y, 10)   # isoelectric = quiet baseline, not midpoint
+
+    # Baseline: use the median of col_y as the isoelectric reference.
+    # The 10th percentile overshoots downward for leads with large negative deflections.
+    baseline_px = np.median(col_y)
     signal      = -(signal - baseline_px) / px_per_mv  # invert: top = positive
 
-    # 7. High-pass: remove any residual slow baseline drift (wandering baseline)
-    #    Use a very wide Savitzky-Golay as a trend estimate and subtract it
-    if len(signal) > 50:
-        trend_win = min(int(len(signal) * 0.4) | 1, len(signal) - 2)  # ~40% of signal, odd
-        if trend_win % 2 == 0:
-            trend_win += 1
-        if trend_win >= 3:
-            trend  = savgol_filter(signal, trend_win, 1)
-            signal = signal - trend + trend.mean()  # subtract drift, preserve mean
+    # 7. Isoelectric correction: find the quietest 20% of the signal
+    #    (lowest local variance windows = TP segments between beats)
+    #    and shift the whole signal so those segments sit at 0 mV.
+    if len(signal) > 20:
+        win = max(5, len(signal) // 20)   # window ~5% of signal length
+        # Compute rolling variance
+        n_wins   = len(signal) - win + 1
+        roll_var = np.array([signal[j:j+win].var() for j in range(n_wins)])
+        # Take the quietest 20% of windows
+        thresh   = np.percentile(roll_var, 20)
+        quiet    = roll_var <= thresh
+        quiet_vals = np.concatenate([signal[j:j+win] for j in range(n_wins) if quiet[j]])
+        if len(quiet_vals) > 0:
+            iso_level = np.median(quiet_vals)
+            signal    = signal - iso_level   # shift so isoelectric = 0 mV
 
     return signal.astype(np.float32)
 
@@ -432,7 +438,7 @@ fig, axes = plt.subplots(4, 3, figsize=(18, 12))
 axes_flat = axes.flatten()   # index 0..11 maps directly to LEAD_NAMES order
 img_np_val = img_tensor.squeeze().cpu().numpy()
 
-# Normalise column names in val_sig to match LEAD_NAMES exactly
+# Normalise column names
 val_sig.columns = [c.strip() for c in val_sig.columns]
 print(f"Signal columns: {list(val_sig.columns)}")
 
