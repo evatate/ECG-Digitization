@@ -3,7 +3,7 @@
 #   3. Inference: predict heatmap per test image (once per image, all 12 leads)
 #   4. Post-process: weighted centroid → gap interpolation → Savitzky-Golay → resample
 #   5. Einthoven correction (II ≈ I + III)
-#   6. Build submission.parquet
+#   6. Build submission.parquet aligned to sample_submission
 
 import os, warnings
 import numpy as np
@@ -25,6 +25,7 @@ import matplotlib.pyplot as plt
 warnings.filterwarnings('ignore')
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f'Device: {DEVICE}')
+
 
 DATA_DIR   = Path('/kaggle/input/physionet-ecg-image-digitization')
 MODEL_DIR  = Path('/kaggle/input/models/eliasstenhede/open-ecg-digitizer-weights/pytorch/default/1')
@@ -69,6 +70,7 @@ LEAD_NAMES = ['I','II','III','aVR','aVL','aVF','V1','V2','V3','V4','V5','V6']
 LONG_LEAD  = 'II'
 SHORT_DUR  = 2.5   # seconds
 LONG_DUR   = 10.0  # seconds
+
 
 def build_model():
     return smp.Unet(
@@ -115,6 +117,7 @@ model = build_model()
 model = load_pretrained(model, MODEL_DIR)
 model = model.to(DEVICE)
 print('Pretrained weights loaded.')
+
 
 def preprocess_image(img_path: str) -> torch.Tensor:
     """
@@ -191,6 +194,7 @@ def build_full_mask(sig_df: pd.DataFrame) -> np.ndarray:
 
     return mask
 
+
 class ECGDataset(Dataset):
     def __init__(self, train_df: pd.DataFrame, max_samples: int = None):
         self.samples = []
@@ -216,7 +220,8 @@ class ECGDataset(Dataset):
         mask_t  = torch.from_numpy(mask).unsqueeze(0)            # [1, H, W]
         return image, mask_t
 
-train_meta = pd.read_csv(TRAIN_CSV, dtype={'id': str})
+
+train_meta = pd.read_csv(TRAIN_CSV, dtype={"id": str})
 dataset    = ECGDataset(train_meta, max_samples=MAX_TRAIN)
 loader     = DataLoader(dataset, batch_size=BATCH_SIZE,
                         shuffle=True, num_workers=2, pin_memory=True)
@@ -254,19 +259,20 @@ for epoch in range(EPOCHS):
 print('Fine-tuning complete.')
 torch.save(model.state_dict(), WORK_DIR / 'finetuned_unet.pth')
 
+
 def estimate_px_per_mv(img_band: np.ndarray) -> float:
     """
     Estimate pixels-per-mV from the RAW GRAYSCALE image band (not the heatmap).
 
     Standard ECG paper: large box = 5mm = 0.5 mV vertically.
     Grid lines appear as periodic dark horizontal stripes in the image.
-    Detect their spacing via FFT of the row-mean projection.
+    We detect their spacing via FFT of the row-mean projection.
     Falls back to H/3.0 if detection fails.
     """
     H, W = img_band.shape
     default = H / 3.0
 
-    # Invert so grid lines are peaks
+    # Invert so grid lines are peaks (they are darker than background)
     inv = 1.0 - img_band
     row_proj = inv.mean(axis=1)   # (H,)
     if row_proj.std() < 1e-4:
@@ -290,7 +296,7 @@ def estimate_px_per_mv(img_band: np.ndarray) -> float:
     grid_spacing_px = 1.0 / dominant_freq
     px_per_mv = grid_spacing_px / 0.5   # large box = 0.5 mV
 
-    # must be physically reasonable
+    # Sanity clamp: must be physically reasonable
     px_per_mv = float(np.clip(px_per_mv, H / 8.0, H * 2.0))
     return px_per_mv
 
@@ -344,7 +350,7 @@ def heatmap_to_signal(heatmap: np.ndarray, target_len: int, img_band: np.ndarray
 
     # 6. Pixel -> mV
     #    Baseline: median of col_y (robust isoelectric estimate)
-    #    Scale: grid-calibrated from the raw image band, else fallback
+    #    Scale: grid-calibrated from the raw image band (if provided), else fallback
     calibration_src = img_band if img_band is not None else heatmap
     px_per_mv   = estimate_px_per_mv(calibration_src)
     baseline_px = np.median(col_y)
@@ -357,7 +363,7 @@ def einthoven_correction(leads: dict) -> dict:
     """
     Einthoven's law: Lead II = Lead I + Lead III.
     Lead II is 10s (4× longer than I and III which are 2.5s).
-    Correct only over the overlapping first 2.5s, then restore the full II.
+    We correct only over the overlapping first 2.5s, then restore the full II.
     """
     if not all(k in leads for k in ('I', 'II', 'III')):
         return leads
@@ -373,6 +379,7 @@ def einthoven_correction(leads: dict) -> dict:
     II_corrected[:n]    = II_short - residual * 2.0 / 3.0
     leads['II']         = II_corrected
     return leads
+
 
 def get_lead_band(lead: str, H: int, W: int):
     """
@@ -410,20 +417,24 @@ img_tensor = preprocess_image(val_img)
 heatmap    = predict_heatmap(img_tensor)
 H_hm, W_hm = heatmap.shape
 
-fig, axes = plt.subplots(4, 3, figsize=(18, 10))
+# LEAD_NAMES has 12 leads; grid is 4 rows x 3 cols = 12 subplots, one per lead in order
+fig, axes = plt.subplots(4, 3, figsize=(18, 12))
+axes_flat = axes.flatten()   # index 0..11 maps directly to LEAD_NAMES order
+img_np_val = img_tensor.squeeze().cpu().numpy()
+
 for i, lead in enumerate(LEAD_NAMES):
-    ax   = axes[i // 3, i % 3]
-    dur  = LONG_DUR if lead == LONG_LEAD else SHORT_DUR
-    n    = int(np.floor(val_fs * dur))
+    ax  = axes_flat[i]
+    dur = LONG_DUR if lead == LONG_LEAD else SHORT_DUR
+    n   = int(np.floor(val_fs * dur))
 
     y0, y1, x0, x1 = get_lead_band(lead, H_hm, W_hm)
-    img_np_val      = img_tensor.squeeze().cpu().numpy()
-    pred_sig        = heatmap_to_signal(heatmap[y0:y1, x0:x1], n, img_np_val[y0:y1, x0:x1])
-    gt_sig          = val_sig[lead].values[:n]
+    pred_sig = heatmap_to_signal(heatmap[y0:y1, x0:x1], n, img_np_val[y0:y1, x0:x1])
+    gt_sig   = val_sig[lead].values[:n]
 
-    t = np.linspace(0, dur, n)
-    ax.plot(t, gt_sig,   'b', lw=0.9, alpha=0.7, label='GT')
-    ax.plot(t, pred_sig, 'r', lw=0.9, alpha=0.7, label='Pred')
+    t_pred = np.linspace(0, dur, n)
+    t_gt   = np.linspace(0, dur, len(gt_sig))
+    ax.plot(t_gt,   gt_sig,   'b', lw=0.9, alpha=0.7, label='GT')
+    ax.plot(t_pred, pred_sig, 'r', lw=0.9, alpha=0.7, label='Pred')
     ax.set_title(lead, fontsize=10)
     ax.set_xlabel('s'); ax.set_ylabel('mV')
     if i == 0:
@@ -436,7 +447,7 @@ plt.show()
 print('Validation plot saved.')
 
 
-test_meta  = pd.read_csv(TEST_CSV, dtype={'id': str})
+test_meta  = pd.read_csv(TEST_CSV, dtype={"id": str})
 sample_sub = pd.read_parquet(SAMPLE_SUB)
 
 rows = []
