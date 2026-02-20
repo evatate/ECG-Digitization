@@ -7,5 +7,5 @@
 
 # folders
 data/
-models/
+weights/
 logs/
