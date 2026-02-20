@@ -349,12 +349,22 @@ def heatmap_to_signal(heatmap: np.ndarray, target_len: int, img_band: np.ndarray
     signal = resample(col_y, target_len)
 
     # 6. Pixel -> mV
-    #    Baseline: median of col_y (robust isoelectric estimate)
-    #    Scale: grid-calibrated from the raw image band (if provided), else fallback
+    #    Baseline: 10th percentile of col_y = isoelectric line
+    #    Scale: grid-calibrated from the raw image band, else fallback
     calibration_src = img_band if img_band is not None else heatmap
     px_per_mv   = estimate_px_per_mv(calibration_src)
-    baseline_px = np.median(col_y)
+    baseline_px = np.percentile(col_y, 10)   # isoelectric = quiet baseline, not midpoint
     signal      = -(signal - baseline_px) / px_per_mv  # invert: top = positive
+
+    # 7. High-pass: remove any residual slow baseline drift (wandering baseline)
+    #    Use a very wide Savitzky-Golay as a trend estimate and subtract it
+    if len(signal) > 50:
+        trend_win = min(int(len(signal) * 0.4) | 1, len(signal) - 2)  # ~40% of signal, odd
+        if trend_win % 2 == 0:
+            trend_win += 1
+        if trend_win >= 3:
+            trend  = savgol_filter(signal, trend_win, 1)
+            signal = signal - trend + trend.mean()  # subtract drift, preserve mean
 
     return signal.astype(np.float32)
 
@@ -422,6 +432,12 @@ fig, axes = plt.subplots(4, 3, figsize=(18, 12))
 axes_flat = axes.flatten()   # index 0..11 maps directly to LEAD_NAMES order
 img_np_val = img_tensor.squeeze().cpu().numpy()
 
+# Normalise column names in val_sig to match LEAD_NAMES exactly
+val_sig.columns = [c.strip() for c in val_sig.columns]
+print(f"Signal columns: {list(val_sig.columns)}")
+
+val_sig_len = train_meta.loc[train_meta['id'] == val_id, 'sig_len'].iloc[0]
+
 for i, lead in enumerate(LEAD_NAMES):
     ax  = axes_flat[i]
     dur = LONG_DUR if lead == LONG_LEAD else SHORT_DUR
@@ -429,12 +445,31 @@ for i, lead in enumerate(LEAD_NAMES):
 
     y0, y1, x0, x1 = get_lead_band(lead, H_hm, W_hm)
     pred_sig = heatmap_to_signal(heatmap[y0:y1, x0:x1], n, img_np_val[y0:y1, x0:x1])
-    gt_sig   = val_sig[lead].values[:n]
 
-    t_pred = np.linspace(0, dur, n)
-    t_gt   = np.linspace(0, dur, len(gt_sig))
-    ax.plot(t_gt,   gt_sig,   'b', lw=0.9, alpha=0.7, label='GT')
-    ax.plot(t_pred, pred_sig, 'r', lw=0.9, alpha=0.7, label='Pred')
+    # GT: all leads are stored as full 10s signal; take the right 2.5s segment
+    # Short leads show columns 0,1,2,3 of the 10s signal in order
+    if lead not in val_sig.columns:
+        print(f"WARNING: lead {lead} not found in signal CSV, skipping GT")
+        gt_sig = np.zeros(n)
+    elif lead == LONG_LEAD:
+        gt_sig = val_sig[lead].values[:n]
+    else:
+        # Find which column position this lead occupies in the grid
+        col_idx = None
+        for row in LEAD_GRID:
+            if lead in row:
+                col_idx = row.index(lead)
+                break
+        if col_idx is not None:
+            quarter = int(np.floor(val_fs * SHORT_DUR))
+            start   = col_idx * quarter
+            gt_sig  = val_sig[lead].values[start: start + n]
+        else:
+            gt_sig = val_sig[lead].values[:n]
+
+    t = np.linspace(0, dur, n)
+    ax.plot(t, gt_sig,   'b', lw=0.9, alpha=0.7, label='GT')
+    ax.plot(t, pred_sig, 'r', lw=0.9, alpha=0.7, label='Pred')
     ax.set_title(lead, fontsize=10)
     ax.set_xlabel('s'); ax.set_ylabel('mV')
     if i == 0:
@@ -447,7 +482,7 @@ plt.show()
 print('Validation plot saved.')
 
 
-test_meta  = pd.read_csv(TEST_CSV, dtype={"id": str})
+test_meta  = pd.read_csv(TEST_CSV)
 sample_sub = pd.read_parquet(SAMPLE_SUB)
 
 rows = []
