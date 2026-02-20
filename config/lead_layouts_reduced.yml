@@ -1,0 +1,17 @@
+precordial_6x1:
+  description: "6×1 layout with V1–V6 leads"
+  layout:
+    rows: 6
+    cols: 1
+  leads: ["V1", "V2", "V3", "V4", "V5", "V6"]
+  rhythm_leads: []
+  total_rows: 6
+
+cabrera_6x1_limb:
+  description: "6×1 cabrera layout with limb leads"
+  layout:
+    rows: 6
+    cols: 1
+  leads: ["aVL", "I", "-aVR", "II", "aVF", "III"]
+  rhythm_leads: []
+  total_rows: 6

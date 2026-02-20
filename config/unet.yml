@@ -1,0 +1,122 @@
+MODEL:
+  class_path: 'src.model.unet.UNet'
+  KWARGS:
+    num_in_channels: 3
+    num_out_channels: 4
+    dims: [32, 64, 128, 256, 320, 320, 320, 320]
+    depth: 2
+
+TRAIN:
+  COMPILE: True
+  CUDNN_BENCHMARK: True
+  LR_SCHEDULER:
+    class_path: 'src.utils.CosineToConstantLR'
+    KWARGS:
+      T_max: 10000
+      eta_min_divisor: 10
+  STOPPER:
+    class_path: 'src.utils.EarlyStopper'
+    KWARGS:
+      metric: 'val_loss'
+      patience: 10
+      delta: 0
+  OPTIMIZER:
+    class_path: 'src.optimizer.adammuon.AdamMuon'
+    KWARGS:
+      lr: 0.0037
+      weight_decay: 0.01
+  MIXED_PRECISION_SCALER:
+    class_path: 'torch.amp.GradScaler'
+    KWARGS: {}
+  CRITERION:
+    class_path: 'src.loss.loss.DiceFocalLoss'
+    KWARGS:
+      alpha: 1.0
+  KWARGS:
+    epochs: 100
+    metrics: []
+    device: 'cuda'
+    metrics:
+      -
+        class_path: 'src.utils.SavePlotsEveryN'
+        fit: false
+        KWARGS:
+          n: 200
+          plot_path: 'sandbox/unet_pred_and_target.png'
+
+HYPERPARAMETER_SEARCH:
+  SEARCH_SPACE: false
+    # --------------- Uncomment to enable hyperparameter search with ray ---------------
+    # TRAIN:
+    #   OPTIMIZER:
+    #     class_path:
+    #       SAMPLE_TYPE: 'ray.tune.grid_search'
+    #       KWARGS:
+    #         values:
+    #           - torch.optim.AdamW
+    #           - src.optimizer.adammuon.AdamMuon
+    #     KWARGS:
+    #       lr:
+    #         SAMPLE_TYPE: 'ray.tune.grid_search'
+    #         KWARGS:
+    #           values: [0.00050119, 0.00069895, 0.00097474, 0.00135936, 0.00189574, 0.00264376, 0.00368695, 0.00514175, 0.0071706 , 0.01      ]
+    # --------------- Uncomment to enable hyperparameter search with ray ---------------
+
+DATALOADER:
+  class_path: 'torch.utils.data.DataLoader'
+  KWARGS:
+    batch_size: 12
+    shuffle: True
+    num_workers: 4
+    pin_memory: True
+    pin_memory_device: 'cuda'
+    prefetch_factor: 6
+    drop_last: True
+
+DATASET:
+  class_path: 'src.dataset.ecg_scan.ECGScanDataset'
+  KWARGS: {}
+  TRAIN:
+    KWARGS:
+      data_path: '/home/datasets/paper-ecg-digitization-4channel/dark_grid_transformed/train'
+    TRANSFORM:
+      class_path: 'src.transform.vision.ComposedTransform'
+      KWARGS:
+        transform_config:
+          - class_path: 'src.transform.vision.RandomCrop'
+            KWARGS:
+              size: [1024, 1024]
+          - class_path: 'src.transform.vision.RandomFlipTransform'
+            KWARGS: {}
+          - class_path: 'src.transform.vision.RandomSaturationContrast'
+            KWARGS: {}
+          - class_path: 'src.transform.vision.RandomQRCode'
+            KWARGS: {}
+          - class_path: 'src.transform.vision.RandomBorder'
+            KWARGS: {}
+          - class_path: 'src.transform.vision.RandomFourierDropout'
+            KWARGS: {}
+          - class_path: 'src.transform.vision.RandomGradientOverlay'
+            KWARGS: {}
+          - class_path: 'src.transform.vision.RandomJPEGCompressionTransform'
+            KWARGS: {}
+          - class_path: 'src.transform.vision.RandomZoomTransform'
+            KWARGS: {}
+          - class_path: 'src.transform.vision.RefineMask'
+            KWARGS: {}
+
+  VAL:
+    KWARGS:
+      data_path: '/home/datasets/paper-ecg-digitization-4channel/dark_grid_transformed/val'
+    TRANSFORM:
+      class_path: 'src.transform.vision.ComposedTransform'
+      KWARGS:
+        transform_config:
+          - class_path: 'src.transform.vision.RandomCrop'
+            KWARGS:
+              size: [1024, 1024]
+          - class_path: 'src.transform.vision.RefineMask'
+            KWARGS: {}
+  TEST:
+    KWARGS:
+      data_path: '/home/datasets/paper-ecg-digitization-4channel/dark_grid_transformed/val'

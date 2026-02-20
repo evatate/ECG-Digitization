@@ -1,0 +1,20 @@
+TRANSFORM:
+  class_path: 'src.transform.vision.ComposedTransform'
+  KWARGS:
+    transform_config:
+      - class_path: 'src.transform.vision.RandomShiftTextTransform'
+        KWARGS: {opacity_range: [0.1, 0.4]}
+      - class_path: 'src.transform.vision.RandomTextOverlayTransform'
+        KWARGS: {opacity_range: [0.1, 0.4]}
+      - class_path: 'src.transform.vision.RandomFlipTransform'
+        KWARGS: {}
+      - class_path: 'src.transform.vision.RandomBlurOrSharpnessTransform'
+        KWARGS: {sigma: [0.0, 2.0]}
+      - class_path: 'src.transform.vision.RandomResizedCropTransform'
+        KWARGS: {}
+      - class_path: 'src.transform.vision.RandomPerspectiveWithImageTransform'
+        KWARGS: {image_path: '/data/random_images'}
+      - class_path: 'src.transform.vision.RandomGradientOverlay'
+        KWARGS: {}
+      - class_path: 'src.transform.vision.RefineMask'
+        KWARGS: {}

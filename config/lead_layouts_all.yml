@@ -1,0 +1,143 @@
+cabrera_12x1:
+  description: "12×1 cabrera layout"
+  layout:
+    rows: 12
+    cols: 1
+  leads: ["aVL", "I", "-aVR", "II", "aVF", "III", "V1", "V2", "V3", "V4", "V5", "V6"]
+  rhythm_leads: []
+  total_rows: 12
+
+standard_12x1:
+  description: "12×1 standard layout"
+  layout:
+    rows: 12
+    cols: 1
+  leads: ["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"]
+  rhythm_leads: []
+  total_rows: 12
+
+precordial_6x1:
+  description: "6×1 layout with V1–V6 leads"
+  layout:
+    rows: 6
+    cols: 1
+  leads: ["V1", "V2", "V3", "V4", "V5", "V6"]
+  rhythm_leads: []
+  total_rows: 6
+
+standard_6x1_limb:
+  description: "6×1 standard layout with limb leads"
+  layout:
+    rows: 6
+    cols: 1
+  leads: ["I", "II", "III", "aVR", "aVL", "aVF"]
+  rhythm_leads: []
+  total_rows: 6
+
+cabrera_6x1_limb:
+  description: "6×1 cabrera layout with limb leads"
+  layout:
+    rows: 6
+    cols: 1
+  leads: ["aVL", "I", "-aVR", "II", "aVF", "III"]
+  rhythm_leads: []
+  total_rows: 6
+
+standard_3x4:
+  description: "3×4 standard layout"
+  layout:
+    rows: 3
+    cols: 4
+  leads:
+    - ["I", "aVR", "V1", "V4"]
+    - ["II", "aVL", "V2", "V5"]
+    - ["III", "aVF", "V3", "V6"]
+  rhythm_leads: []
+  total_rows: 3
+
+standard_3x4_with_r1:
+  description: "3×4 standard layout with 1 wildcard rhythm lead"
+  layout:
+    rows: 3
+    cols: 4
+  leads:
+    - ["I", "aVR", "V1", "V4"]
+    - ["II", "aVL", "V2", "V5"]
+    - ["III", "aVF", "V3", "V6"]
+  rhythm_leads: ["Any"]
+  total_rows: 4
+
+standard_3x4_with_r2:
+  description: "3×4 standard layout with 2 wildcard rhythm leads"
+  layout:
+    rows: 3
+    cols: 4
+  leads:
+    - ["I", "aVR", "V1", "V4"]
+    - ["II", "aVL", "V2", "V5"]
+    - ["III", "aVF", "V3", "V6"]
+  rhythm_leads: ["Any", "Any"]
+  total_rows: 5
+
+standard_3x4_with_r3:
+  description: "3×4 standard layout with 3 wildcard rhythm leads"
+  layout:
+    rows: 3
+    cols: 4
+  leads:
+    - ["I", "aVR", "V1", "V4"]
+    - ["II", "aVL", "V2", "V5"]
+    - ["III", "aVF", "V3", "V6"]
+  rhythm_leads: ["Any", "Any", "Any"]
+  total_rows: 6
+
+standard_6x2:
+  description: "6×2 standard layout"
+  layout:
+    rows: 6
+    cols: 2
+  leads:
+    - ["I", "V1"]
+    - ["II", "V2"]
+    - ["III", "V3"]
+    - ["aVR", "V4"]
+    - ["aVL", "V5"]
+    - ["aVF", "V6"]
+  rhythm_leads: []
+  total_rows: 6
+
+standard_3x1:
+  description: "3×1 standard layout"
+  layout:
+    rows: 3
+    cols: 1
+  leads: ["I", "II", "III"]
+  rhythm_leads: []
+  total_rows: 3
+
+standard_6x2_with_r1:
+  description: "6×2 standard layout with 1 wildcard rhythm lead"
+  layout:
+    rows: 6
+    cols: 2
+  leads:
+    - ["I", "V1"]
+    - ["II", "V2"]
+    - ["III", "V2"]
+    - ["aVR", "V4"]
+    - ["aVL", "V5"]
+    - ["aVF", "V6"]
+  rhythm_leads: ["Any"]
+  total_rows: 7
+
+precordial_3x2:
+  description: "3×2 precordial layout"
+  layout:
+    rows: 3
+    cols: 2
+  leads:
+    - ["V1", "V4"]
+    - ["V2", "V5"]
+    - ["V3", "V6"]
+  rhythm_leads: []
+  total_rows: 3

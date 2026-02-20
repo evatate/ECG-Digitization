@@ -1,0 +1,68 @@
+MODEL:
+  class_path: 'src.model.unet.UNet'
+  KWARGS:
+    num_in_channels: 1
+    num_out_channels: 13
+    dims: [32, 64, 128, 256, 256]
+    depth: 2
+
+TRAIN:
+  COMPILE: True
+  CUDNN_BENCHMARK: True
+  LR_SCHEDULER:
+    class_path: 'src.utils.CosineToConstantLR'
+    KWARGS:
+      T_max: 3000
+      eta_min_divisor: 10
+  STOPPER:
+    class_path: 'src.utils.EarlyStopper'
+    KWARGS:
+      metric: 'val_loss'
+      patience: 5
+      delta: 0
+  OPTIMIZER:
+    class_path: 'src.optimizer.adammuon.AdamMuon'
+    KWARGS:
+      lr: 0.0037
+      weight_decay: 0.001
+  MIXED_PRECISION_SCALER:
+    class_path: 'torch.amp.GradScaler'
+    KWARGS: {}
+  CRITERION:
+    class_path: 'torch.nn.CrossEntropyLoss'
+    KWARGS:
+      weight: [0.08264463, 0.08264463, 0.08264463, 0.08264463, 0.08264463, 0.08264463, 0.08264463, 0.08264463, 0.08264463, 0.08264463, 0.08264463, 0.08264463, 0.00826446]
+  KWARGS:
+    epochs: 30
+    metrics: []
+    device: 'cuda'
+
+HYPERPARAMETER_SEARCH:
+  SEARCH_SPACE: false
+
+DATALOADER:
+  class_path: 'torch.utils.data.DataLoader'
+  KWARGS:
+    batch_size: 64
+    shuffle: False
+    num_workers: 8
+    pin_memory: True
+    pin_memory_device: 'cuda'
+    prefetch_factor: 6
+    drop_last: True
+
+DATASET:
+  class_path: 'src.dataset.synthetic_lead_text.SyntheticLeadTextDataset'
+  KWARGS: {}
+  TRAIN:
+    KWARGS:
+      num_samples: 50000
+      font_dir: '/usr/share/fonts'
+  VAL:
+    KWARGS:
+      num_samples: 64
+      font_dir: '/usr/share/fonts'
+  TEST:
+    KWARGS:
+      num_samples: 64
+      font_dir: '/usr/share/fonts'

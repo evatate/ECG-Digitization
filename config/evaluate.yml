@@ -1,0 +1,4 @@
+digitized_dir: sandbox/inference_output
+ground_truth_dir: '/dataset/ecg-digitization/paper_ecg_dataset/'
+results_csv: sandbox/metrics.csv
+shift_steps: 200 # symmetric 200 ms -> max. 100 ms left or right
